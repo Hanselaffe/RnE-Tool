@@ -30,7 +30,7 @@ def search_nvd(service, version):
     print(f"Searching NVD for exploits for {service} {version}...")
     try:
         response = requests.get(nvd_url)
-        if response.status_code == 200):
+        if response.status_code == 200:  # Korrektur hier: entferne die überflüssige Klammer
             return response.json()
         else:
             return f"Error fetching data from NVD: HTTP {response.status_code}"
