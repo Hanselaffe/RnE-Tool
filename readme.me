@@ -1,0 +1,80 @@
+# RnE - Reconnaissance and Exploit
+
+RnE ist ein Python-basiertes Tool, das Netzwerkscans durchführt, nach bekannten Exploits sucht und gefundene Exploits ausführen kann. Es kombiniert Nmap, Exploit-DB, NVD und DirBuster, um ein umfassendes Reconnaissance- und Exploit-Toolkit bereitzustellen.
+
+## Funktionen
+
+- **Nmap-Scan**: Führt einen umfassenden Nmap-Scan durch, um offene Ports, Dienste und Versionen zu identifizieren.
+- **Exploit-DB-Suche**: Sucht nach bekannten Exploits in der Exploit-DB basierend auf den Scan-Ergebnissen.
+- **NVD-Suche**: Sucht nach Schwachstellen in der National Vulnerability Database (NVD).
+- **DirBuster-Scan**: Findet versteckte Verzeichnisse und Dateien auf dem Ziel-Webserver.
+- **Exploit-Ausführung**: Führt gefundene Exploits basierend auf den Scan-Ergebnissen aus.
+
+## Anforderungen
+
+- Python 3.x
+- Nmap
+- Exploit-DB
+- Java (für DirBuster)
+- DirBuster-1.0-RC1.jar
+- Python-Bibliotheken:
+  - python-nmap
+  - requests
+
+## Installation
+
+1. Installieren Sie die erforderlichen Tools und Bibliotheken:
+    ```bash
+    sudo apt-get install nmap exploitdb
+    pip install python-nmap requests
+    ```
+
+2. Laden Sie DirBuster herunter:
+    - [DirBuster-Download](https://www.owasp.org/index.php/Category:OWASP_DirBuster_Project)
+
+3. Stellen Sie sicher, dass Java installiert ist:
+    ```bash
+    sudo apt-get install default-jre
+    ```
+
+## Nutzung
+
+1. Speichern Sie das Skript als `RnE.py`.
+
+2. Führen Sie das Skript aus:
+    ```bash
+    python RnE.py
+    ```
+
+3. Verwenden Sie das Menü, um die gewünschte Aktion auszuwählen:
+    - **1. Run Nmap Scan and Search for Exploits**: Geben Sie die Ziel-IP-Adresse ein, um den Nmap-Scan und die Exploit-Suche durchzuführen.
+    - **2. Execute Exploits from File**: Führt die Exploits aus der Datei `scan_results.txt` aus.
+    - **3. Exit**: Beendet das Programm.
+
+## Aufbau des Skripts
+
+### `scan_and_search(target_ip)`
+
+Führt den Nmap-Scan durch, sucht nach bekannten Exploits und speichert die Ergebnisse in einer Datei (`scan_results.txt`).
+
+### `execute_exploits_from_file()`
+
+Liest die Ergebnisse aus der Datei `scan_results.txt` und führt die gefundenen Exploits aus.
+
+### `main_menu()`
+
+CLI-basierte Benutzeroberfläche, um die verfügbaren Optionen auszuwählen.
+
+## Sicherheitshinweise
+
+- Stellen Sie sicher, dass Sie die Erlaubnis haben, das Zielsystem zu scannen und Exploits auszuführen.
+- Unautorisierte Aktionen können rechtliche Konsequenzen haben und gegen ethische Richtlinien verstoßen.
+- Führen Sie solche Tests vorzugsweise in einer kontrollierten und autorisierten Testumgebung durch.
+
+## Lizenz
+
+Dieses Projekt steht unter der MIT-Lizenz. Weitere Informationen finden Sie in der Datei `LICENSE`.
+
+## Autoren
+
+- [Ihr Name](https://github.com/ihre-github-seite)
