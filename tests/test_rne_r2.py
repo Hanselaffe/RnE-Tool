@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import rne
 from rne_core.models import CveCandidate, ExploitCandidate, ServiceFinding, WebFinding
@@ -45,6 +45,12 @@ class NmapTests(unittest.TestCase):
         self.assertEqual(
             tools.build_nmap_command("192.168.56.10", "deep", nse_vuln=True),
             ["nmap", "-sV", "-T3", "-p-", "--script", "vuln", "-oX", "-", "192.168.56.10"],
+        )
+
+    def test_ipv6_target_enables_nmap_ipv6_mode(self) -> None:
+        self.assertEqual(
+            tools.build_nmap_command("2001:db8::10", "quick")[:3],
+            ["nmap", "-6", "-sV"],
         )
 
     @patch("rne_core.tools.subprocess.run")
@@ -102,12 +108,21 @@ class CorrelationTests(unittest.TestCase):
         self.assertEqual(len(results), 3)
         self.assertEqual(results[0].cve_id, "CVE-2026-0001")
 
+    @patch.dict("os.environ", {}, clear=True)
+    def test_nvd_budget_without_api_key_is_five(self) -> None:
+        self.assertEqual(tools.nvd_request_budget(), 5)
+
+    @patch.dict("os.environ", {"NVD_API_KEY": "test-key"}, clear=True)
+    def test_nvd_budget_with_api_key_is_fifty(self) -> None:
+        self.assertEqual(tools.nvd_request_budget(), 50)
+
     def test_web_url_uses_discovered_service(self) -> None:
         finding = ServiceFinding(8443, "tcp", "open", "https", "nginx", "1.24", "ssl")
         self.assertEqual(tools.build_web_url("192.168.56.10", finding), "https://192.168.56.10:8443/")
 
 
 class OrchestratorTests(unittest.TestCase):
+    @patch("rne_core.orchestrator.nvd_request_budget", return_value=5)
     @patch("rne_core.orchestrator.run_gobuster")
     @patch("rne_core.orchestrator.search_nvd")
     @patch("rne_core.orchestrator.search_exploit_db")
@@ -120,6 +135,7 @@ class OrchestratorTests(unittest.TestCase):
         exploit_mock,
         nvd_mock,
         gobuster_mock,
+        _budget_mock,
     ) -> None:
         service = ServiceFinding(443, "tcp", "open", "https", "nginx", "1.24", "ssl")
         status_mock.return_value = {"nmap": True, "searchsploit": True, "gobuster": True}
@@ -140,6 +156,35 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(report.cves[key][0].cve_id, "CVE-2026-0001")
         self.assertEqual(report.web_findings[key][0].output_line, "/admin (Status: 403)")
         self.assertEqual(len(report.executed_commands), 3)
+
+    @patch("rne_core.orchestrator.nvd_request_budget", return_value=1)
+    @patch("rne_core.orchestrator.search_nvd", return_value=[])
+    @patch("rne_core.orchestrator.search_exploit_db")
+    @patch("rne_core.orchestrator.run_nmap")
+    @patch("rne_core.orchestrator.toolchain_status")
+    def test_nvd_budget_is_enforced_per_run(
+        self,
+        status_mock,
+        nmap_mock,
+        exploit_mock,
+        nvd_mock,
+        _budget_mock,
+    ) -> None:
+        first = ServiceFinding(22, "tcp", "open", "ssh", "OpenSSH", "9.6")
+        second = ServiceFinding(80, "tcp", "open", "http", "nginx", "1.24")
+        status_mock.return_value = {"nmap": True, "searchsploit": False, "gobuster": False}
+        nmap_mock.return_value = ([first, second], ["nmap", "..."])
+        exploit_mock.return_value = ([], [])
+
+        report = run_assessment(
+            "192.168.56.10",
+            policy=ScopePolicy(authorized=True),
+            options=OrchestrationOptions(use_exploit_db=False),
+        )
+
+        self.assertEqual(nvd_mock.call_count, 1)
+        self.assertIn("NVD correlation limited to 1 service queries", "\n".join(report.warnings))
+        self.assertEqual(report.cves[second.label], [])
 
 
 class MirrorTests(unittest.TestCase):
