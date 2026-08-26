@@ -73,27 +73,29 @@ def run_assessment(
             f"triage limited to the first {len(triage_services)} of {len(services)} discovered services"
         )
 
+    searchsploit_available = report.tool_status.get("searchsploit", False)
+    gobuster_available = report.tool_status.get("gobuster", False)
+    if options.use_exploit_db and not searchsploit_available:
+        report.warnings.append("SearchSploit not available; Exploit-DB correlation skipped")
+    if options.web_enum and not gobuster_available:
+        report.warnings.append("Gobuster not available; requested web enumeration skipped")
+
     for finding in triage_services:
         key = finding.label
         search_name = finding.product or finding.service
 
-        if options.use_exploit_db:
-            if report.tool_status.get("searchsploit", False):
-                try:
-                    candidates, command = search_exploit_db(
-                        search_name,
-                        finding.version,
-                        limit=options.max_exploits_per_service,
-                    )
-                    report.executed_commands.append(command)
-                    report.exploits[key] = candidates
-                except RuntimeError as exc:
-                    report.exploits[key] = []
-                    report.warnings.append(f"SearchSploit failed for {key}: {exc}")
-            else:
-                report.warnings.append("SearchSploit not available; Exploit-DB correlation skipped")
-                options_use_exploit_db = False
-                del options_use_exploit_db
+        if options.use_exploit_db and searchsploit_available:
+            try:
+                candidates, command = search_exploit_db(
+                    search_name,
+                    finding.version,
+                    limit=options.max_exploits_per_service,
+                )
+                report.executed_commands.append(command)
+                report.exploits[key] = candidates
+            except RuntimeError as exc:
+                report.exploits[key] = []
+                report.warnings.append(f"SearchSploit failed for {key}: {exc}")
 
         if options.use_nvd:
             try:
@@ -106,22 +108,19 @@ def run_assessment(
                 report.cves[key] = []
                 report.warnings.append(f"NVD lookup failed for {key}: {exc}")
 
-        if options.web_enum and finding.is_web:
-            if report.tool_status.get("gobuster", False):
-                url = build_web_url(normalized_target, finding)
-                try:
-                    web_findings, command = run_gobuster(
-                        url,
-                        options.wordlist or "",
-                        timeout=options.gobuster_timeout,
-                    )
-                    report.executed_commands.append(command)
-                    report.web_findings[key] = web_findings
-                except (RuntimeError, ValueError) as exc:
-                    report.web_findings[key] = []
-                    report.warnings.append(f"web enumeration failed for {key}: {exc}")
-            else:
-                report.warnings.append("Gobuster not available; requested web enumeration skipped")
+        if options.web_enum and finding.is_web and gobuster_available:
+            url = build_web_url(normalized_target, finding)
+            try:
+                web_findings, command = run_gobuster(
+                    url,
+                    options.wordlist or "",
+                    timeout=options.gobuster_timeout,
+                )
+                report.executed_commands.append(command)
+                report.web_findings[key] = web_findings
+            except (RuntimeError, ValueError) as exc:
+                report.web_findings[key] = []
+                report.warnings.append(f"web enumeration failed for {key}: {exc}")
 
     report.warnings = list(dict.fromkeys(report.warnings))
     return report
