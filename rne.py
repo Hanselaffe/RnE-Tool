@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from rne_core.orchestrator import OrchestrationOptions, run_assessment
+from rne_core.preflight import toolchain_diagnostics
 from rne_core.scope import ScopePolicy
 from rne_core.tools import mirror_exploit, toolchain_status
 
@@ -24,6 +25,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     status = subparsers.add_parser("status", help="show availability of external tool adapters")
+    status.add_argument(
+        "--verbose",
+        action="store_true",
+        help="probe local versions and required CLI capabilities without scanning or network access",
+    )
     status.set_defaults(handler=_handle_status)
 
     scan = subparsers.add_parser("scan", help="run an authorized assessment pipeline for one literal IP")
@@ -64,9 +70,28 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _handle_status(args: argparse.Namespace) -> int:
-    del args
-    for name, available in toolchain_status().items():
-        print(f"{name}: {'available' if available else 'missing'}")
+    if not args.verbose:
+        for name, available in toolchain_status().items():
+            print(f"{name}: {'available' if available else 'missing'}")
+        return 0
+
+    diagnostics = toolchain_diagnostics()
+    for name in ("nmap", "searchsploit", "gobuster"):
+        item = diagnostics[name]
+        print(f"{name}:")
+        print(f"  installed: {'yes' if item.installed else 'no'}")
+        print(f"  ready: {'yes' if item.ready else 'no'}")
+        print(f"  path: {item.path or '-'}")
+        print(f"  version: {item.version}")
+        if item.capabilities:
+            print("  capabilities:")
+            for capability, available in item.capabilities.items():
+                print(f"    {capability}: {'yes' if available else 'no'}")
+        if item.issues:
+            print("  issues:")
+            for issue in item.issues:
+                print(f"    - {issue}")
+    print(f"scan_pipeline_ready: {'yes' if diagnostics['nmap'].ready else 'no'}")
     return 0
 
 
