@@ -1,0 +1,2 @@
+# RnE R2 uses only the Python standard library.
+# External adapters (Nmap, SearchSploit, Gobuster) are discovered at runtime.
