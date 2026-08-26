@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import urllib.parse
@@ -27,6 +28,16 @@ def tool_available(name: str) -> bool:
 
 def toolchain_status() -> dict[str, bool]:
     return {name: tool_available(name) for name in ("nmap", "searchsploit", "gobuster")}
+
+
+def nvd_api_key() -> str | None:
+    value = os.getenv("NVD_API_KEY", "").strip()
+    return value or None
+
+
+def nvd_request_budget() -> int:
+    """Return the per-run request budget aligned to NVD's published rolling-window limits."""
+    return 50 if nvd_api_key() else 5
 
 
 def _run(command: list[str], *, timeout: int, cwd: str | Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -58,7 +69,10 @@ def _run(command: list[str], *, timeout: int, cwd: str | Path | None = None) -> 
 def build_nmap_command(target: str, profile: str, *, nse_vuln: bool = False) -> list[str]:
     if profile not in NMAP_PROFILES:
         raise ValueError(f"unknown Nmap profile: {profile}")
-    command = ["nmap", *NMAP_PROFILES[profile]]
+    command = ["nmap"]
+    if ":" in target:
+        command.append("-6")
+    command.extend(NMAP_PROFILES[profile])
     if nse_vuln:
         command.extend(["--script", "vuln"])
     command.extend(["-oX", "-", target])
@@ -196,10 +210,11 @@ def search_nvd(service: str, version: str, *, limit: int = 5, timeout: int = 15)
     if not keyword:
         return []
     query = urllib.parse.urlencode({"keywordSearch": keyword, "resultsPerPage": limit})
-    request = urllib.request.Request(
-        f"{NVD_CVE_API}?{query}",
-        headers={"User-Agent": "RnE-Tool/2026-mini-legion-r2"},
-    )
+    headers = {"User-Agent": "RnE-Tool/2026-mini-legion-r2"}
+    api_key = nvd_api_key()
+    if api_key:
+        headers["apiKey"] = api_key
+    request = urllib.request.Request(f"{NVD_CVE_API}?{query}", headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.load(response)
