@@ -12,7 +12,31 @@ The R2 refresh restores the original project idea after the earlier maintenance 
 - **Gobuster** — optional bounded directory enumeration for discovered web services.
 - **SearchSploit mirror** — explicitly copy one selected public Exploit-DB entry into a local workspace for operator review. Mirroring does not execute the exploit.
 
-External tools are optional except Nmap for the scan pipeline. `python rne.py status` shows which adapters are currently available.
+External tools are optional except Nmap for the scan pipeline.
+
+## Toolchain preflight
+
+Basic availability check:
+
+```bash
+python rne.py status
+```
+
+Detailed local readiness check:
+
+```bash
+python rne.py status --verbose
+```
+
+The verbose preflight performs only local version/help probes and never scans a target or accesses the network. It reports executable path, detected version where available, required CLI capabilities and `ready` status.
+
+RnE verifies the capabilities it actually depends on:
+
+- **Nmap:** `-sV`, `--version-light`, `--top-ports`, `-oX`, `-6`, `--script`;
+- **SearchSploit:** JSON output (`-j`/`--json`) and mirror (`-m`/`--mirror`);
+- **Gobuster:** `dir`, URL/wordlist arguments, threads, timeout, no-progress, no-error and quiet modes.
+
+This distinguishes `missing` from `installed but incompatible`. `scan_pipeline_ready` reflects whether the required Nmap adapter is locally usable. SearchSploit and Gobuster remain optional for their respective pipeline stages.
 
 ## Scan profiles
 
@@ -65,10 +89,11 @@ The API key is sent in the `apiKey` request header and is never written into the
 
 ## Usage
 
-Check adapter availability:
+Check adapter availability and compatibility:
 
 ```bash
 python rne.py status
+python rne.py status --verbose
 ```
 
 Standard private/lab assessment:
@@ -118,17 +143,7 @@ The mirror command only invokes `searchsploit -m <EDB-ID>` and verifies that exa
 
 ## Result model
 
-A scan writes `rne_report.json` by default. The report contains:
-
-- normalized open services;
-- Exploit-DB candidates grouped by discovered service;
-- NVD CVE candidates grouped by discovered service;
-- optional web-enumeration findings;
-- external tool availability;
-- warnings for unavailable/failed optional adapters;
-- the exact external command argument lists executed during the run.
-
-This gives future adapters a stable interface and avoids parsing a single mixed text file as the historical prototype did.
+A scan writes `rne_report.json` by default. The report contains normalized open services, Exploit-DB candidates, NVD CVE candidates, optional web-enumeration findings, external tool availability, warnings and exact external command argument lists executed during the run.
 
 ## Architecture
 
