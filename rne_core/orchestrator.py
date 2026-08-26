@@ -7,6 +7,7 @@ from .models import RunReport
 from .scope import ScopePolicy, validate_target
 from .tools import (
     build_web_url,
+    nvd_request_budget,
     run_gobuster,
     run_nmap,
     search_exploit_db,
@@ -80,6 +81,9 @@ def run_assessment(
     if options.web_enum and not gobuster_available:
         report.warnings.append("Gobuster not available; requested web enumeration skipped")
 
+    nvd_budget = nvd_request_budget() if options.use_nvd else 0
+    nvd_calls = 0
+
     for finding in triage_services:
         key = finding.label
         search_name = finding.product or finding.service
@@ -98,15 +102,19 @@ def run_assessment(
                 report.warnings.append(f"SearchSploit failed for {key}: {exc}")
 
         if options.use_nvd:
-            try:
-                report.cves[key] = search_nvd(
-                    search_name,
-                    finding.version,
-                    limit=options.max_cves_per_service,
-                )
-            except RuntimeError as exc:
+            if nvd_calls < nvd_budget:
+                nvd_calls += 1
+                try:
+                    report.cves[key] = search_nvd(
+                        search_name,
+                        finding.version,
+                        limit=options.max_cves_per_service,
+                    )
+                except RuntimeError as exc:
+                    report.cves[key] = []
+                    report.warnings.append(f"NVD lookup failed for {key}: {exc}")
+            else:
                 report.cves[key] = []
-                report.warnings.append(f"NVD lookup failed for {key}: {exc}")
 
         if options.web_enum and finding.is_web and gobuster_available:
             url = build_web_url(normalized_target, finding)
@@ -121,6 +129,11 @@ def run_assessment(
             except (RuntimeError, ValueError) as exc:
                 report.web_findings[key] = []
                 report.warnings.append(f"web enumeration failed for {key}: {exc}")
+
+    if options.use_nvd and len(triage_services) > nvd_budget:
+        report.warnings.append(
+            f"NVD correlation limited to {nvd_budget} service queries for this run; set NVD_API_KEY to raise the budget"
+        )
 
     report.warnings = list(dict.fromkeys(report.warnings))
     return report
