@@ -24,7 +24,7 @@ RnE provides three fixed profiles:
 | `standard` | `-sV -T3 --top-ports 1000` | normal assessment workflow |
 | `deep` | `-sV -T3 -p-` | full TCP port inventory |
 
-`--nse-vuln` explicitly adds Nmap's `vuln` NSE category to the chosen profile. It is never enabled implicitly.
+IPv6 targets automatically add Nmap's `-6` switch. `--nse-vuln` explicitly adds Nmap's `vuln` NSE category to the chosen profile and is never enabled implicitly.
 
 ## Safety and operator controls
 
@@ -54,6 +54,15 @@ These controls do not replace network segmentation, rules of engagement, or oper
 
 There are no mandatory third-party Python packages.
 
+### NVD API budget
+
+RnE follows the NVD's published rolling-window request limits at the per-run orchestration level:
+
+- without an API key: at most **5** service queries per run;
+- with `NVD_API_KEY` set in the environment: at most **50** service queries per run.
+
+The API key is sent in the `apiKey` request header and is never written into the RnE report or external command list. Additional discovered services remain in the report even when their NVD correlation is skipped because the request budget has been reached.
+
 ## Usage
 
 Check adapter availability:
@@ -80,10 +89,10 @@ Deep authorized inventory with explicitly requested Nmap vulnerability scripts:
 python rne.py scan 192.168.56.10 --authorized --profile deep --nse-vuln
 ```
 
-Authorized public target:
+Public-target syntax (use only for a target explicitly covered by the rules of engagement):
 
 ```bash
-python rne.py scan 203.0.113.10 --authorized --allow-public
+python rne.py scan <public-ip> --authorized --allow-public
 ```
 
 Add web enumeration to web services discovered by Nmap:
